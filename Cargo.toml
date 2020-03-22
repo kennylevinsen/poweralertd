@@ -1,0 +1,13 @@
+[package]
+name = "poweralertd"
+version = "0.1.0"
+authors = ["Kenny Levinsen <kl@kl.wtf>"]
+edition = "2018"
+
+[profile.release]
+lto = "fat"
+panic = "abort"
+opt-level = "z"
+
+[dependencies]
+dbus = '0.8.2'
