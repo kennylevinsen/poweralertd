@@ -10,8 +10,7 @@
 
 #define NOTIFICATION_MAX_LEN 128
 
-static int send_state_update(sd_bus *bus, struct power_state *state)
-{
+static int send_state_update(sd_bus *bus, struct power_state *state) {
 	enum urgency urgency = urgency_normal;
 	char *msg = malloc(NOTIFICATION_MAX_LEN);
 	int ret;
@@ -47,11 +46,9 @@ static int send_state_update(sd_bus *bus, struct power_state *state)
 	return ret;
 }
 
-static int send_warning_update(sd_bus *bus, struct power_state *state)
-{
+static int send_warning_update(sd_bus *bus, struct power_state *state) {
 	enum urgency urgency = urgency_critical;
 	char *msg = NULL;
-	int ret;
 	switch (state->warning_level) {
 	case warning_level_none:
 		msg = "Warning cleared\n";
@@ -74,12 +71,11 @@ static int send_warning_update(sd_bus *bus, struct power_state *state)
 		break;
 	}
 
-	ret = notify(bus, "Power warning", msg, 1, urgency);
+	int ret = notify(bus, "Power warning", msg, 1, urgency);
 	return ret;
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
 	struct power_state state = { 0 };
 	sd_bus *user_bus = NULL;
 	sd_bus *system_bus = NULL;
@@ -117,7 +113,7 @@ int main(int argc, char *argv[])
 	}
 	state.state_changed = 0;
 
-	for (;;) {
+	while (1) {
 		ret = sd_bus_process(system_bus, NULL);
 		if (ret < 0) {
 			fprintf(stderr, "could not process system bus messages: %s\n", strerror(-ret));

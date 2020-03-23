@@ -6,11 +6,10 @@
 
 #include "upower.h"
 
-static int handle_upower_properties_changed(sd_bus_message *msg, void *userdata, sd_bus_error *ret_error)
-{
+static int handle_upower_properties_changed(sd_bus_message *msg, void *userdata, sd_bus_error *ret_error) {
 	struct power_state *state = userdata;
-
 	int ret;
+
 	ret = sd_bus_message_skip(msg, "s");
 	if (ret < 0) {
 		goto error;
@@ -21,7 +20,7 @@ static int handle_upower_properties_changed(sd_bus_message *msg, void *userdata,
 		goto error;
 	}
 
-	for (;;) {
+	while (1) {
 		ret = sd_bus_message_enter_container(msg, 'e', "sv");
 		if (ret < 0) {
 			goto error;
@@ -74,7 +73,7 @@ static int handle_upower_properties_changed(sd_bus_message *msg, void *userdata,
 		goto error;
 	}
 
-	for (;;) {
+	while (1) {
 		const char *invalidated = NULL;
 		ret = sd_bus_message_read(msg, "s", &invalidated);
 		if (ret < 0) {
@@ -96,17 +95,16 @@ error:
 	return ret;
 }
 
-int register_upower_notification(sd_bus *bus, struct power_state *state)
-{
+int register_upower_notification(sd_bus *bus, struct power_state *state) {
 	char *match = "type='signal',path='/org/freedesktop/UPower/devices/DisplayDevice',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged'";
 
 	return sd_bus_add_match(bus, NULL, match, handle_upower_properties_changed, state);
 }
 
-int upower_state_update(sd_bus *bus, struct power_state *state)
-{
+int upower_state_update(sd_bus *bus, struct power_state *state) {
 	sd_bus_error error = SD_BUS_ERROR_NULL;
 	int ret;
+
 	ret = sd_bus_get_property_trivial(
 	    bus,
 	    "org.freedesktop.UPower",
@@ -119,6 +117,7 @@ int upower_state_update(sd_bus *bus, struct power_state *state)
 	if (ret < 0) {
 		goto finish;
 	}
+
 	ret = sd_bus_get_property_trivial(
 	    bus,
 	    "org.freedesktop.UPower",
@@ -131,6 +130,7 @@ int upower_state_update(sd_bus *bus, struct power_state *state)
 	if (ret < 0) {
 		goto finish;
 	}
+
 	ret = sd_bus_get_property_trivial(
 	    bus,
 	    "org.freedesktop.UPower",

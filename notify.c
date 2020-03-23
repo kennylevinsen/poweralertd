@@ -6,8 +6,7 @@
 
 #include "notify.h"
 
-int notify(sd_bus *bus, char *summary, char *body, uint32_t id, enum urgency urgency)
-{
+int notify(sd_bus *bus, char *summary, char *body, uint32_t id, enum urgency urgency) {
 	sd_bus_error error = SD_BUS_ERROR_NULL;
 	sd_bus_message *m = NULL;
 	int ret = sd_bus_call_method(bus,
