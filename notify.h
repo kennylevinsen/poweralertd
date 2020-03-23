@@ -3,6 +3,8 @@
 
 #include <systemd/sd-bus.h>
 
+// Urgency values to be used as hint in org.freedesktop.Notifications.Notify calls.
+// https://people.gnome.org/~mccann/docs/notification-spec/notification-spec-latest.html#hints
 enum urgency {
 	urgency_low = 0,
 	urgency_normal = 1,
