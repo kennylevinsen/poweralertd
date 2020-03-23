@@ -10,8 +10,7 @@ int notify(sd_bus *bus, char *summary, char *body, uint32_t id, enum urgency urg
 {
 	sd_bus_error error = SD_BUS_ERROR_NULL;
 	sd_bus_message *m = NULL;
-	int ret;
-	ret = sd_bus_call_method(bus,
+	int ret = sd_bus_call_method(bus,
 	    "org.freedesktop.Notifications",
 	    "/org/freedesktop/Notifications",
 	    "org.freedesktop.Notifications",
@@ -29,17 +28,6 @@ int notify(sd_bus *bus, char *summary, char *body, uint32_t id, enum urgency urg
 	    "urgency", "y", (uint8_t)urgency,
 	    -1);
 
-	if (ret < 0) {
-		goto notify_finish;
-	}
-
-	uint32_t sdret;
-	ret = sd_bus_message_read(m, "u", &sdret);
-	if (ret < 0) {
-		goto notify_finish;
-	}
-
-notify_finish:
 	sd_bus_error_free(&error);
 	sd_bus_message_unref(m);
 
