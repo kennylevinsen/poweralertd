@@ -97,23 +97,25 @@ int main(int argc, char *argv[])
 		goto finish;
 	}
 
+	ret = register_upower_notification(system_bus, &state);
+	if (ret < 0) {
+		fprintf(stderr, "could not set up monitor: %s\n", strerror(-ret));
+		goto finish;
+	}
+
 	ret = upower_state_update(system_bus, &state);
 	if (ret < 0) {
 		fprintf(stderr, "could not read initial state: %s\n", strerror(-ret));
 		goto finish;
 	}
 
+	// Send start-up state change message
 	ret = send_state_update(user_bus, &state);
 	if (ret < 0) {
 		fprintf(stderr, "could not send initial update notification: %s\n", strerror(-ret));
 		goto finish;
 	}
-
-	ret = register_upower_notification(system_bus, &state);
-	if (ret < 0) {
-		fprintf(stderr, "could not set up monitor: %s\n", strerror(-ret));
-		goto finish;
-	}
+	state.state_changed = 0;
 
 	for (;;) {
 		ret = sd_bus_process(system_bus, NULL);
