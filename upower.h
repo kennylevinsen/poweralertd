@@ -1,7 +1,7 @@
 #ifndef _UPOWER_H
 #define _UPOWER_H
 
-#include <systemd/sd-bus.h>
+#include "dbus.h"
 #include "list.h"
 
 // org.freedesktop.UPower.Device.State
@@ -48,20 +48,24 @@ enum change_slot {
 };
 
 struct upower_device {
+	// Path information
 	char* path;
 	char* native_path;
 
+	// Props we're intersted in
+	char *model;
 	int power_supply;
-	enum upower_type type;
+	int online;
 	double percentage;
+	enum upower_type type;
 	enum upower_state state;
 	enum upower_warning_level warning_level;
-	char *model;
-	int online;
 
+	// Prop notification
 	int changes[3];
 	uint32_t notifications[3];
 
+	// sd_bus notification slot
 	sd_bus_slot *slot;
 };
 

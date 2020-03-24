@@ -1,9 +1,9 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <systemd/sd-bus.h>
 #include <unistd.h>
 
+#include "dbus.h"
 #include "notify.h"
 
 int notify(sd_bus *bus, char *summary, char *body, uint32_t *id, enum urgency urgency) {

@@ -1,9 +1,9 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <systemd/sd-bus.h>
 #include <unistd.h>
 
+#include "dbus.h"
 #include "upower.h"
 
 static char *upower_state_string[7] = {
