@@ -7,49 +7,51 @@
 
 #include "notify.h"
 #include "upower.h"
+#include "list.h"
 
 #define NOTIFICATION_MAX_LEN 128
 
-static int send_state_update(sd_bus *bus, struct power_state *state) {
+static int send_state_update(sd_bus *bus, struct upower_device *device) {
 	enum urgency urgency = urgency_normal;
-	char *msg = malloc(NOTIFICATION_MAX_LEN);
-	int ret;
-	switch (state->state) {
+	char title[NOTIFICATION_MAX_LEN];
+	char msg[NOTIFICATION_MAX_LEN];
+	switch (device->state) {
 	case state_charging:
-		snprintf(msg, NOTIFICATION_MAX_LEN, "Battery charging\nCurrent level: %0.0lf%%\n", state->percentage);
+		snprintf(msg, NOTIFICATION_MAX_LEN, "Battery charging\nCurrent level: %0.0lf%%\n", device->percentage);
 		break;
 	case state_discharging:
-		snprintf(msg, NOTIFICATION_MAX_LEN, "Battery discharging\nCurrent level: %0.0lf%%\n", state->percentage);
+		snprintf(msg, NOTIFICATION_MAX_LEN, "Battery discharging\nCurrent level: %0.0lf%%\n", device->percentage);
 		break;
 	case state_empty:
-		snprintf(msg, NOTIFICATION_MAX_LEN, "Battery empty\nCurrent level: %0.0lf%%\n", state->percentage);
+		snprintf(msg, NOTIFICATION_MAX_LEN, "Battery empty\nCurrent level: %0.0lf%%\n", device->percentage);
 		urgency = urgency_critical;
 		break;
 	case state_fully_charged:
-		snprintf(msg, NOTIFICATION_MAX_LEN, "Battery fully charged\nCurrent level: %0.0lf%%\n", state->percentage);
+		snprintf(msg, NOTIFICATION_MAX_LEN, "Battery fully charged\nCurrent level: %0.0lf%%\n", device->percentage);
 		break;
 	case state_pending_charge:
-		snprintf(msg, NOTIFICATION_MAX_LEN, "Battery pending charge\nCurrent level: %0.0lf%%\n", state->percentage);
+		snprintf(msg, NOTIFICATION_MAX_LEN, "Battery pending charge\nCurrent level: %0.0lf%%\n", device->percentage);
 		urgency = urgency_critical;
 		break;
 	case state_pending_discharge:
-		snprintf(msg, NOTIFICATION_MAX_LEN, "Battery pending discharge\nCurrent level: %0.0lf%%\n", state->percentage);
+		snprintf(msg, NOTIFICATION_MAX_LEN, "Battery pending discharge\nCurrent level: %0.0lf%%\n", device->percentage);
 		break;
 	case state_unknown:
-		snprintf(msg, NOTIFICATION_MAX_LEN, "Unknown power state\nCurrent level: %0.0lf%%\n", state->percentage);
+		snprintf(msg, NOTIFICATION_MAX_LEN, "Unknown power state\nCurrent level: %0.0lf%%\n", device->percentage);
 		urgency = urgency_critical;
 		break;
 	}
 
-	ret = notify(bus, "Power state", msg, 1, urgency);
-	free(msg);
-	return ret;
+	snprintf(title, NOTIFICATION_MAX_LEN, "Power status: %s", device->model);
+
+	return notify(bus, title, msg, 0, urgency);
 }
 
-static int send_warning_update(sd_bus *bus, struct power_state *state) {
+static int send_warning_update(sd_bus *bus, struct upower_device *device) {
 	enum urgency urgency = urgency_critical;
+	char title[NOTIFICATION_MAX_LEN];
 	char *msg = NULL;
-	switch (state->warning_level) {
+	switch (device->warning_level) {
 	case warning_level_none:
 		msg = "Warning cleared\n";
 		urgency = urgency_normal;
@@ -71,8 +73,9 @@ static int send_warning_update(sd_bus *bus, struct power_state *state) {
 		break;
 	}
 
-	int ret = notify(bus, "Power warning", msg, 1, urgency);
-	return ret;
+	snprintf(title, NOTIFICATION_MAX_LEN, "Power warning: %s", device->model);
+
+	return notify(bus, title, msg, 0, urgency);
 }
 
 int main(int argc, char *argv[]) {
@@ -93,27 +96,36 @@ int main(int argc, char *argv[]) {
 		goto finish;
 	}
 
-	ret = register_upower_notification(system_bus, &state);
-	if (ret < 0) {
-		fprintf(stderr, "could not set up monitor: %s\n", strerror(-ret));
-		goto finish;
-	}
+	state.bus = system_bus;
 
-	ret = upower_state_update(system_bus, &state);
+	ret = init_upower(system_bus, &state);
 	if (ret < 0) {
-		fprintf(stderr, "could not read initial state: %s\n", strerror(-ret));
+		fprintf(stderr, "could not init upower: %s\n", strerror(-ret));
 		goto finish;
 	}
-
-	// Send start-up state change message
-	ret = send_state_update(user_bus, &state);
-	if (ret < 0) {
-		fprintf(stderr, "could not send initial update notification: %s\n", strerror(-ret));
-		goto finish;
-	}
-	state.state_changed = 0;
 
 	while (1) {
+		for (int idx = 0; idx < state.devices->length; idx++) {
+			struct upower_device *device = state.devices->items[idx];
+
+			if (device->type != type_line_power && device->state_changed) {
+				ret = send_state_update(user_bus, device);
+				if (ret < 0) {
+					fprintf(stderr, "could not send state update notification: %s\n", strerror(-ret));
+					goto finish;
+				}
+				device->state_changed = 0;
+			}
+			if (device->warning_level_changed) {
+				ret = send_warning_update(user_bus, device);
+				if (ret < 0) {
+					fprintf(stderr, "could not send warning update notification: %s\n", strerror(-ret));
+					goto finish;
+				}
+				device->warning_level_changed = 0;
+			}
+		}
+
 		ret = sd_bus_process(system_bus, NULL);
 		if (ret < 0) {
 			fprintf(stderr, "could not process system bus messages: %s\n", strerror(-ret));
@@ -122,22 +134,6 @@ int main(int argc, char *argv[]) {
 			continue;
 		}
 
-		if (state.state_changed) {
-			ret = send_state_update(user_bus, &state);
-			if (ret < 0) {
-				fprintf(stderr, "could not send state update notification: %s\n", strerror(-ret));
-				goto finish;
-			}
-			state.state_changed = 0;
-		}
-		if (state.warning_level_changed) {
-			ret = send_warning_update(user_bus, &state);
-			if (ret < 0) {
-				fprintf(stderr, "could not send warning update notification: %s\n", strerror(-ret));
-				goto finish;
-			}
-			state.warning_level_changed = 0;
-		}
 
 		ret = sd_bus_wait(system_bus, UINT64_MAX);
 		if (ret < 0) {
@@ -147,6 +143,7 @@ int main(int argc, char *argv[]) {
 	}
 
 finish:
+	destroy_upower(system_bus, &state);
 	sd_bus_unref(user_bus);
 	sd_bus_unref(system_bus);
 
