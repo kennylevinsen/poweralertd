@@ -6,6 +6,25 @@
 
 #include "upower.h"
 
+static char *upower_state_string[7] = {
+	"unknown",
+	"charging",
+	"discharging",
+	"empty",
+	"fully charged",
+	"pending charge",
+	"pending discharge",
+};
+
+static char *upower_warning_level_string[6] = {
+	"unknown",
+	"none",
+	"discharging",
+	"low",
+	"critical",
+	"action",
+};
+
 static int upower_compare_path(const void *item, const void *data) {
 	struct upower_device *device = (struct upower_device *)item;
 	if (strcmp(device->path, (char*)data) == 0) {
@@ -18,7 +37,7 @@ static struct upower_device *upower_device_create() {
 	return calloc(1, sizeof(struct upower_device));
 }
 
-static void upower_device_destroy(struct upower_device *device) {
+void upower_device_destroy(struct upower_device *device) {
 	if (device == NULL) {
 		return;
 	}
@@ -32,6 +51,20 @@ static void upower_device_destroy(struct upower_device *device) {
 		device->model = NULL;
 	}
 	free(device);
+}
+
+char* upower_device_state_string(struct upower_device *device) {
+	if (device->state >= 0 && device->state < 7) {
+		return upower_state_string[device->state];
+	}
+	return "unknown";
+}
+
+char* upower_device_warning_level_string(struct upower_device *device) {
+	if (device->warning_level >= 0 && device->warning_level < 7) {
+		return upower_warning_level_string[device->warning_level];
+	}
+	return "unknown";
 }
 
 static int upower_device_update_state(sd_bus *bus, struct upower_device *device) {
@@ -148,17 +181,25 @@ static int handle_upower_device_properties_changed(sd_bus_message *msg, void *us
 			goto error;
 		}
 		if (strcmp(name, "State") == 0) {
-			ret = sd_bus_message_read(msg, "v", "u", &state->state);
+			uint32_t new_state;
+			ret = sd_bus_message_read(msg, "v", "u", &new_state);
 			if (ret < 0) {
 				goto error;
 			}
-			state->state_changed = 1;
+			if (new_state != state->state) {
+				state->state_changed = 1;
+				state->state = new_state;
+			}
 		} else if (strcmp(name, "WarningLevel") == 0) {
-			ret = sd_bus_message_read(msg, "v", "u", &state->warning_level);
+			uint32_t new_warning_level;
+			ret = sd_bus_message_read(msg, "v", "u", &new_warning_level);
 			if (ret < 0) {
 				goto error;
 			}
-			state->warning_level_changed = 1;
+			if (new_warning_level != state->warning_level) {
+				state->warning_level_changed = 1;
+				state->warning_level = new_warning_level;
+			}
 		} else if (strcmp(name, "Percentage") == 0) {
 			ret = sd_bus_message_read(msg, "v", "d", &state->percentage);
 			if (ret < 0) {
@@ -257,7 +298,7 @@ static int handle_upower_device_removed(sd_bus_message *msg, void *userdata, sd_
 
 	int idx = list_seq_find(state->devices, upower_compare_path, path);
 	if (idx != -1) {
-		upower_device_destroy(state->devices->items[idx]);
+		list_add(state->removed_devices, state->devices->items[idx]);
 		list_del(state->devices, idx);
 	}
 
@@ -310,6 +351,7 @@ int init_upower(sd_bus *bus, struct power_state *state) {
 	}
 
 	state->devices = create_list();
+	state->removed_devices = create_list();
 
 	while (1) {
 		char *path;

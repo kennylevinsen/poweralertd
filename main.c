@@ -11,38 +11,34 @@
 
 #define NOTIFICATION_MAX_LEN 128
 
-static int send_state_update(sd_bus *bus, struct upower_device *device) {
+static int send_remove(sd_bus *bus, struct upower_device *device) {
 	enum urgency urgency = urgency_normal;
 	char title[NOTIFICATION_MAX_LEN];
+
+	snprintf(title, NOTIFICATION_MAX_LEN, "Power status: %s", device->model);
+	char *msg = "Device disconnected\n";
+
+	return notify(bus, title, msg, 0, urgency);
+}
+
+static int send_state_update(sd_bus *bus, struct upower_device *device) {
+	enum urgency urgency;
+	char title[NOTIFICATION_MAX_LEN];
 	char msg[NOTIFICATION_MAX_LEN];
+
 	switch (device->state) {
-	case state_charging:
-		snprintf(msg, NOTIFICATION_MAX_LEN, "Battery charging\nCurrent level: %0.0lf%%\n", device->percentage);
-		break;
-	case state_discharging:
-		snprintf(msg, NOTIFICATION_MAX_LEN, "Battery discharging\nCurrent level: %0.0lf%%\n", device->percentage);
-		break;
 	case state_empty:
-		snprintf(msg, NOTIFICATION_MAX_LEN, "Battery empty\nCurrent level: %0.0lf%%\n", device->percentage);
-		urgency = urgency_critical;
-		break;
-	case state_fully_charged:
-		snprintf(msg, NOTIFICATION_MAX_LEN, "Battery fully charged\nCurrent level: %0.0lf%%\n", device->percentage);
-		break;
 	case state_pending_charge:
-		snprintf(msg, NOTIFICATION_MAX_LEN, "Battery pending charge\nCurrent level: %0.0lf%%\n", device->percentage);
-		urgency = urgency_critical;
-		break;
-	case state_pending_discharge:
-		snprintf(msg, NOTIFICATION_MAX_LEN, "Battery pending discharge\nCurrent level: %0.0lf%%\n", device->percentage);
-		break;
 	case state_unknown:
-		snprintf(msg, NOTIFICATION_MAX_LEN, "Unknown power state\nCurrent level: %0.0lf%%\n", device->percentage);
 		urgency = urgency_critical;
+		break;
+	default:
+		urgency = urgency_normal;
 		break;
 	}
 
 	snprintf(title, NOTIFICATION_MAX_LEN, "Power status: %s", device->model);
+	snprintf(msg, NOTIFICATION_MAX_LEN, "Battery %s\nCurrent level: %0.0lf%%\n", upower_device_state_string(device), device->percentage);
 
 	return notify(bus, title, msg, 0, urgency);
 }
@@ -50,7 +46,8 @@ static int send_state_update(sd_bus *bus, struct upower_device *device) {
 static int send_warning_update(sd_bus *bus, struct upower_device *device) {
 	enum urgency urgency = urgency_critical;
 	char title[NOTIFICATION_MAX_LEN];
-	char *msg = NULL;
+	char *msg;
+
 	switch (device->warning_level) {
 	case warning_level_none:
 		msg = "Warning cleared\n";
@@ -68,7 +65,7 @@ static int send_warning_update(sd_bus *bus, struct upower_device *device) {
 	case warning_level_action:
 		msg = "Warning: power level at action threshold\n";
 		break;
-	case warning_level_unknown:
+	default:
 		msg = "Warning: unknown warning level\n";
 		break;
 	}
@@ -124,6 +121,18 @@ int main(int argc, char *argv[]) {
 				}
 				device->warning_level_changed = 0;
 			}
+		}
+
+		for (int idx = 0; idx < state.removed_devices->length; idx++) {
+			struct upower_device *device = state.removed_devices->items[idx];
+
+			ret = send_remove(user_bus, device);
+			if (ret < 0) {
+				fprintf(stderr, "could not send device removal notification: %s\n", strerror(-ret));
+				goto finish;
+			}
+			upower_device_destroy(device);
+			list_del(state.removed_devices, idx);
 		}
 
 		ret = sd_bus_process(system_bus, NULL);

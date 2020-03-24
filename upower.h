@@ -60,8 +60,13 @@ struct upower_device {
 
 struct power_state {
 	list_t *devices;
+	list_t *removed_devices;
 	sd_bus *bus;
 };
+
+char* upower_device_state_string(struct upower_device *device);
+char* upower_device_warning_level_string(struct upower_device *device);
+void upower_device_destroy(struct upower_device *device);
 
 int init_upower(sd_bus *bus, struct power_state *state);
 void destroy_upower(sd_bus *bus, struct power_state *state);
