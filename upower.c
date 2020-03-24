@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <string.h>
 
 #include "dbus.h"
 #include "upower.h"
@@ -204,6 +205,7 @@ finish:
 	sd_bus_error_free(&error);
 	return ret;
 }
+
 static int handle_upower_device_properties_changed(sd_bus_message *msg, void *userdata, sd_bus_error *ret_error) {
 	struct upower_device *state = userdata;
 	int ret;
