@@ -22,4 +22,32 @@ executable(
 	'poweralertd',
 	['main.c', 'upower.c', 'notify.c', 'list.c'],
 	dependencies: [logind],
-	install: true)
+	install: true,
+)
+
+scdoc = dependency('scdoc', required: get_option('man-pages'), version: '>= 1.9.7')
+
+if scdoc.found()
+	sh = find_program('sh')
+
+	man_pages = ['poweralertd.1.scd']
+
+	mandir = get_option('mandir')
+
+	foreach src : man_pages
+		topic = src.split('.')[0]
+		section = src.split('.')[1]
+		output = '@0@.@1@'.format(topic, section)
+
+		custom_target(
+			output,
+			input: src,
+			output: output,
+			command: [
+				sh, '-c', '@0@ < @INPUT@ > @1@'.format(scdoc.get_pkgconfig_variable('scdoc'), output)
+			],
+			install: true,
+			install_dir: '@0@/man@1@'.format(mandir, section)
+		)
+	endforeach
+endif
