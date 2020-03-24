@@ -11,6 +11,6 @@ enum urgency {
 	urgency_critical = 2,
 };
 
-int notify(sd_bus *bus, char *summary, char *body, uint32_t id, enum urgency urgency);
+int notify(sd_bus *bus, char *summary, char *body, uint32_t *id, enum urgency urgency);
 
 #endif

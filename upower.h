@@ -41,8 +41,15 @@ enum upower_type {
 	type_phone = 8,
 };
 
+enum change_slot {
+	slot_state = 0,
+	slot_warning = 1,
+	slot_online = 2,
+};
+
 struct upower_device {
 	char* path;
+	char* native_path;
 
 	int power_supply;
 	enum upower_type type;
@@ -50,25 +57,27 @@ struct upower_device {
 	enum upower_state state;
 	enum upower_warning_level warning_level;
 	char *model;
+	int online;
 
-	int state_changed;
-	int warning_level_changed;
+	int changes[3];
+	uint32_t notifications[3];
 
-	int live;
 	sd_bus_slot *slot;
 };
 
-struct power_state {
+struct upower {
 	list_t *devices;
 	list_t *removed_devices;
 	sd_bus *bus;
 };
 
+int upower_device_has_battery(struct upower_device *device);
 char* upower_device_state_string(struct upower_device *device);
 char* upower_device_warning_level_string(struct upower_device *device);
+char* upower_device_type_string(struct upower_device *device);
 void upower_device_destroy(struct upower_device *device);
 
-int init_upower(sd_bus *bus, struct power_state *state);
-void destroy_upower(sd_bus *bus, struct power_state *state);
+int init_upower(sd_bus *bus, struct upower *state);
+void destroy_upower(sd_bus *bus, struct upower *state);
 
 #endif

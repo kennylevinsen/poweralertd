@@ -21,7 +21,35 @@ static int send_remove(sd_bus *bus, struct upower_device *device) {
 	return notify(bus, title, msg, 0, urgency);
 }
 
+static int send_online_update(sd_bus *bus, struct upower_device *device) {
+	if (!device->changes[slot_online]) {
+		return 0;
+	}
+	device->changes[slot_online] = 0;
+
+	char title[NOTIFICATION_MAX_LEN];
+	char *msg;
+
+	if (strlen(device->model) > 0) {
+		snprintf(title, NOTIFICATION_MAX_LEN, "Power status: %s", device->model);
+	} else {
+		snprintf(title, NOTIFICATION_MAX_LEN, "Power status: %s (%s)", device->native_path, upower_device_type_string(device));
+	}
+	if (device->online) {
+		msg = "Power supply online";
+	} else {
+		msg = "Power supply offline";
+	}
+
+	return notify(bus, title, msg, &device->notifications[slot_online], urgency_normal);
+}
+
 static int send_state_update(sd_bus *bus, struct upower_device *device) {
+	if (!device->changes[slot_state]) {
+		return 0;
+	}
+	device->changes[slot_state] = 0;
+
 	enum urgency urgency;
 	char title[NOTIFICATION_MAX_LEN];
 	char msg[NOTIFICATION_MAX_LEN];
@@ -37,13 +65,22 @@ static int send_state_update(sd_bus *bus, struct upower_device *device) {
 		break;
 	}
 
-	snprintf(title, NOTIFICATION_MAX_LEN, "Power status: %s", device->model);
+	if (strlen(device->model) > 0) {
+		snprintf(title, NOTIFICATION_MAX_LEN, "Power status: %s", device->model);
+	} else {
+		snprintf(title, NOTIFICATION_MAX_LEN, "Power status: %s (%s)", device->native_path, upower_device_type_string(device));
+	}
 	snprintf(msg, NOTIFICATION_MAX_LEN, "Battery %s\nCurrent level: %0.0lf%%\n", upower_device_state_string(device), device->percentage);
 
-	return notify(bus, title, msg, 0, urgency);
+	return notify(bus, title, msg, &device->notifications[slot_state], urgency);
 }
 
 static int send_warning_update(sd_bus *bus, struct upower_device *device) {
+	if (!device->changes[slot_warning]) {
+		return 0;
+	}
+	device->changes[slot_warning] = 0;
+
 	enum urgency urgency = urgency_critical;
 	char title[NOTIFICATION_MAX_LEN];
 	char *msg;
@@ -70,13 +107,17 @@ static int send_warning_update(sd_bus *bus, struct upower_device *device) {
 		break;
 	}
 
-	snprintf(title, NOTIFICATION_MAX_LEN, "Power warning: %s", device->model);
+	if (strlen(device->model) > 0) {
+		snprintf(title, NOTIFICATION_MAX_LEN, "Power warning: %s", device->model);
+	} else {
+		snprintf(title, NOTIFICATION_MAX_LEN, "Power warning: %s (%s)", device->native_path, upower_device_type_string(device));
+	}
 
-	return notify(bus, title, msg, 0, urgency);
+	return notify(bus, title, msg, &device->notifications[slot_warning], urgency);
 }
 
 int main(int argc, char *argv[]) {
-	struct power_state state = { 0 };
+	struct upower state = { 0 };
 	sd_bus *user_bus = NULL;
 	sd_bus *system_bus = NULL;
 	int ret;
@@ -105,21 +146,23 @@ int main(int argc, char *argv[]) {
 		for (int idx = 0; idx < state.devices->length; idx++) {
 			struct upower_device *device = state.devices->items[idx];
 
-			if (device->type != type_line_power && device->state_changed) {
+			if (upower_device_has_battery(device)) {
 				ret = send_state_update(user_bus, device);
 				if (ret < 0) {
 					fprintf(stderr, "could not send state update notification: %s\n", strerror(-ret));
 					goto finish;
 				}
-				device->state_changed = 0;
-			}
-			if (device->warning_level_changed) {
 				ret = send_warning_update(user_bus, device);
 				if (ret < 0) {
 					fprintf(stderr, "could not send warning update notification: %s\n", strerror(-ret));
 					goto finish;
 				}
-				device->warning_level_changed = 0;
+			} else {
+				ret = send_online_update(user_bus, device);
+				if (ret < 0) {
+					fprintf(stderr, "could not send online update notification: %s\n", strerror(-ret));
+					goto finish;
+				}
 			}
 		}
 

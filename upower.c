@@ -25,6 +25,22 @@ static char *upower_warning_level_string[6] = {
 	"action",
 };
 
+static char *upower_type_string[9] = {
+	"unknown",
+	"line power",
+	"battery",
+	"ups",
+	"monitor",
+	"mouse",
+	"keyboard",
+	"pda",
+	"phone",
+};
+
+int upower_device_has_battery(struct upower_device *device) {
+	return device->type != type_line_power && device->type != type_unknown;
+}
+
 static int upower_compare_path(const void *item, const void *data) {
 	struct upower_device *device = (struct upower_device *)item;
 	if (strcmp(device->path, (char*)data) == 0) {
@@ -61,8 +77,15 @@ char* upower_device_state_string(struct upower_device *device) {
 }
 
 char* upower_device_warning_level_string(struct upower_device *device) {
-	if (device->warning_level >= 0 && device->warning_level < 7) {
+	if (device->warning_level >= 0 && device->warning_level < 6) {
 		return upower_warning_level_string[device->warning_level];
+	}
+	return "unknown";
+}
+
+char* upower_device_type_string(struct upower_device *device) {
+	if (device->type >= 0 && device->type < 9) {
+		return upower_type_string[device->type];
 	}
 	return "unknown";
 }
@@ -80,6 +103,19 @@ static int upower_device_update_state(sd_bus *bus, struct upower_device *device)
 	    &error,
 	    'b',
 	    &device->power_supply);
+	if (ret < 0) {
+		goto finish;
+	}
+
+	ret = sd_bus_get_property_trivial(
+	    bus,
+	    "org.freedesktop.UPower",
+	    device->path,
+	    "org.freedesktop.UPower.Device",
+	    "Online",
+	    &error,
+	    'b',
+	    &device->online);
 	if (ret < 0) {
 		goto finish;
 	}
@@ -110,6 +146,20 @@ static int upower_device_update_state(sd_bus *bus, struct upower_device *device)
 		goto finish;
 	}
 	device->model = strdup(model);
+
+	char *native_path = NULL;
+	ret = sd_bus_get_property_string(
+	    bus,
+	    "org.freedesktop.UPower",
+	    device->path,
+	    "org.freedesktop.UPower.Device",
+	    "NativePath",
+	    &error,
+	    &native_path);
+	if (ret < 0) {
+		goto finish;
+	}
+	device->native_path = strdup(native_path);
 
 	ret = sd_bus_get_property_trivial(
 	    bus,
@@ -147,7 +197,8 @@ static int upower_device_update_state(sd_bus *bus, struct upower_device *device)
 	    'd',
 	    &device->percentage);
 
-	device->state_changed = 1;
+	device->changes[slot_state] = 1;
+	device->changes[slot_online] = 1;
 
 finish:
 	sd_bus_error_free(&error);
@@ -187,7 +238,7 @@ static int handle_upower_device_properties_changed(sd_bus_message *msg, void *us
 				goto error;
 			}
 			if (new_state != state->state) {
-				state->state_changed = 1;
+				state->changes[slot_state] = 1;
 				state->state = new_state;
 			}
 		} else if (strcmp(name, "WarningLevel") == 0) {
@@ -197,8 +248,18 @@ static int handle_upower_device_properties_changed(sd_bus_message *msg, void *us
 				goto error;
 			}
 			if (new_warning_level != state->warning_level) {
-				state->warning_level_changed = 1;
+				state->changes[slot_warning] = 1;
 				state->warning_level = new_warning_level;
+			}
+		} else if (strcmp(name, "Online") == 0) {
+			int new_online;
+			ret = sd_bus_message_read(msg, "v", "b", &new_online);
+			if (ret < 0) {
+				goto error;
+			}
+			if (new_online != state->online) {
+				state->changes[slot_online] = 1;
+				state->online = new_online;
 			}
 		} else if (strcmp(name, "Percentage") == 0) {
 			ret = sd_bus_message_read(msg, "v", "d", &state->percentage);
@@ -257,7 +318,7 @@ static int upower_device_register_notification(sd_bus *bus, struct upower_device
 }
 
 static int handle_upower_device_added(sd_bus_message *msg, void *userdata, sd_bus_error *ret_error) {
-	struct power_state *state = userdata;
+	struct upower *state = userdata;
 	int ret;
 
 	struct upower_device *device = calloc(1, sizeof(struct upower_device));
@@ -287,7 +348,7 @@ error:
 }
 
 static int handle_upower_device_removed(sd_bus_message *msg, void *userdata, sd_bus_error *ret_error) {
-	struct power_state *state = userdata;
+	struct upower *state = userdata;
 	int ret;
 
 	char *path;
@@ -309,7 +370,7 @@ error:
 	return ret;
 }
 
-int init_upower(sd_bus *bus, struct power_state *state) {
+int init_upower(sd_bus *bus, struct upower *state) {
 	sd_bus_error error = SD_BUS_ERROR_NULL;
 	sd_bus_message *msg = NULL;
 	int ret;
@@ -388,7 +449,7 @@ error:
 	return ret;
 }
 
-void destroy_upower(sd_bus *bus, struct power_state *state) {
+void destroy_upower(sd_bus *bus, struct upower *state) {
 	if (state->devices != NULL) {
 		for (int idx = 0; idx < state->devices->length; idx++) {
 			upower_device_destroy(state->devices->items[idx]);
