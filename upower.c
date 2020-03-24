@@ -64,6 +64,10 @@ void upower_device_destroy(struct upower_device *device) {
 		free(device->path);
 		device->path = NULL;
 	}
+	if (device->native_path != NULL) {
+		free(device->native_path);
+		device->native_path = NULL;
+	}
 	if (device->model != NULL) {
 		free(device->model);
 		device->model = NULL;
