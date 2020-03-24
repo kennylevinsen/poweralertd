@@ -1,0 +1,11 @@
+image: archlinux
+packages:
+  - gcc
+  - meson
+sources:
+  - https://git.sr.ht/~kennylevinsen/poweralertd
+tasks:
+  - build: |
+      cd poweralertd
+      meson build
+      ninja -C build
