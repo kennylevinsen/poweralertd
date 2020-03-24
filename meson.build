@@ -10,6 +10,9 @@ project(
 	],
 )
 
+add_project_arguments('-Wno-unused-parameter', language: 'c')
+add_project_arguments('-Wno-missing-braces', language: 'c')
+
 logind = dependency('libsystemd', required: false)
 if logind.found()
 	add_project_arguments('-DHAVE_SYSTEMD=1', language: 'c')
