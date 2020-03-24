@@ -72,6 +72,10 @@ void upower_device_destroy(struct upower_device *device) {
 		free(device->model);
 		device->model = NULL;
 	}
+	if (device->slot != NULL) {
+		sd_bus_slot_unref(device->slot);
+		device->slot = NULL;
+	}
 	free(device);
 }
 
