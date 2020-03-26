@@ -207,9 +207,6 @@ static int upower_device_update_state(sd_bus *bus, struct upower_device *device)
 	    'd',
 	    &device->percentage);
 
-	device->changes[slot_state] = 1;
-	device->changes[slot_online] = 1;
-
 finish:
 	sd_bus_error_free(&error);
 	return ret;
@@ -330,10 +327,8 @@ static int upower_device_register_notification(sd_bus *bus, struct upower_device
 
 static int handle_upower_device_added(sd_bus_message *msg, void *userdata, sd_bus_error *ret_error) {
 	struct upower *state = userdata;
-	int ret;
-
-	struct upower_device *device = calloc(1, sizeof(struct upower_device));
-	list_add(state->devices, device);
+	struct upower_device *device;
+	int ret, idx;
 
 	char *path;
 	ret = sd_bus_message_read(msg, "o", &path);
@@ -341,11 +336,36 @@ static int handle_upower_device_added(sd_bus_message *msg, void *userdata, sd_bu
 		goto error;
 	}
 
+	// Look for doubly-added devices
+	idx = list_seq_find(state->devices, upower_compare_path, path);
+	if (idx != -1) {
+		device = state->devices->items[idx];
+		goto update;
+	}
+
+	// Look for recently removed devices
+	idx = list_seq_find(state->removed_devices, upower_compare_path, path);
+	if (idx != -1) {
+		device = state->removed_devices->items[idx];
+		list_add(state->devices, device);
+		list_del(state->removed_devices, idx);
+		goto update;
+	}
+
+	// Fresh device
+	device = calloc(1, sizeof(struct upower_device));
 	device->path = strdup(path);
+	device->changes[slot_state] = 1;
+	device->changes[slot_online] = 1;
+
+	list_add(state->devices, device);
+
 	ret = upower_device_register_notification(state->bus, device);
 	if (ret < 0) {
 		goto error;
 	}
+
+update:
 	ret = upower_device_update_state(state->bus, device);
 	if (ret < 0) {
 		goto error;
@@ -446,6 +466,8 @@ int init_upower(sd_bus *bus, struct upower *state) {
 		if (ret < 0) {
 			goto error;
 		}
+		device->changes[slot_state] = 1;
+		device->changes[slot_online] = 1;
 	}
 
 	ret = sd_bus_message_exit_container(msg);
