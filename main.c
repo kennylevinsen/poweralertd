@@ -13,7 +13,7 @@
 #define NOTIFICATION_MAX_LEN 128
 
 static int send_remove(sd_bus *bus, struct upower_device *device) {
-	enum urgency urgency = urgency_normal;
+	enum urgency urgency = URGENCY_NORMAL;
 	char title[NOTIFICATION_MAX_LEN];
 
 	snprintf(title, NOTIFICATION_MAX_LEN, "Power status: %s", device->model);
@@ -23,10 +23,9 @@ static int send_remove(sd_bus *bus, struct upower_device *device) {
 }
 
 static int send_online_update(sd_bus *bus, struct upower_device *device) {
-	if (!device->changes[slot_online]) {
+	if (device->current.online == device->last.online) {
 		return 0;
 	}
-	device->changes[slot_online] = 0;
 
 	char title[NOTIFICATION_MAX_LEN];
 	char *msg;
@@ -36,33 +35,32 @@ static int send_online_update(sd_bus *bus, struct upower_device *device) {
 	} else {
 		snprintf(title, NOTIFICATION_MAX_LEN, "Power status: %s (%s)", device->native_path, upower_device_type_string(device));
 	}
-	if (device->online) {
+	if (device->current.online) {
 		msg = "Power supply online";
 	} else {
 		msg = "Power supply offline";
 	}
 
-	return notify(bus, title, msg, &device->notifications[slot_online], urgency_normal);
+	return notify(bus, title, msg, &device->notifications[SLOT_ONLINE], URGENCY_NORMAL);
 }
 
 static int send_state_update(sd_bus *bus, struct upower_device *device) {
-	if (!device->changes[slot_state]) {
+	if (device->current.state == device->last.state) {
 		return 0;
 	}
-	device->changes[slot_state] = 0;
 
 	enum urgency urgency;
 	char title[NOTIFICATION_MAX_LEN];
 	char msg[NOTIFICATION_MAX_LEN];
 
-	switch (device->state) {
-	case state_empty:
-	case state_pending_charge:
-	case state_unknown:
-		urgency = urgency_critical;
+	switch (device->current.state) {
+	case UPOWER_DEVICE_STATE_EMPTY:
+	case UPOWER_DEVICE_STATE_PENDING_CHARGE:
+	case UPOWER_DEVICE_STATE_UNKNOWN:
+		urgency = URGENCY_CRITICAL;
 		break;
 	default:
-		urgency = urgency_normal;
+		urgency = URGENCY_NORMAL;
 		break;
 	}
 
@@ -71,36 +69,39 @@ static int send_state_update(sd_bus *bus, struct upower_device *device) {
 	} else {
 		snprintf(title, NOTIFICATION_MAX_LEN, "Power status: %s (%s)", device->native_path, upower_device_type_string(device));
 	}
-	snprintf(msg, NOTIFICATION_MAX_LEN, "Battery %s\nCurrent level: %0.0lf%%\n", upower_device_state_string(device), device->percentage);
+	if (device->current.battery_level != UPOWER_DEVICE_LEVEL_NONE) {
+		snprintf(msg, NOTIFICATION_MAX_LEN, "Battery %s\nCurrent level: %s\n", upower_device_state_string(device), upower_device_battery_level_string(device));
+	} else {
+		snprintf(msg, NOTIFICATION_MAX_LEN, "Battery %s\nCurrent level: %0.0lf%%\n", upower_device_state_string(device), device->current.percentage);
+	}
 
-	return notify(bus, title, msg, &device->notifications[slot_state], urgency);
+	return notify(bus, title, msg, &device->notifications[SLOT_STATE], urgency);
 }
 
 static int send_warning_update(sd_bus *bus, struct upower_device *device) {
-	if (!device->changes[slot_warning]) {
+	if (device->current.warning_level == device->last.warning_level) {
 		return 0;
 	}
-	device->changes[slot_warning] = 0;
 
-	enum urgency urgency = urgency_critical;
+	enum urgency urgency = URGENCY_CRITICAL;
 	char title[NOTIFICATION_MAX_LEN];
 	char *msg;
 
-	switch (device->warning_level) {
-	case warning_level_none:
+	switch (device->current.warning_level) {
+	case UPOWER_DEVICE_LEVEL_NONE:
 		msg = "Warning cleared\n";
-		urgency = urgency_normal;
+		urgency = URGENCY_NORMAL;
 		break;
-	case warning_level_discharging:
+	case UPOWER_DEVICE_LEVEL_DISCHARGING:
 		msg = "Warning: system discharging\n";
 		break;
-	case warning_level_low:
+	case UPOWER_DEVICE_LEVEL_LOW:
 		msg = "Warning: power level low\n";
 		break;
-	case warning_level_critical:
+	case UPOWER_DEVICE_LEVEL_CRITICAL:
 		msg = "Warning: power level critical\n";
 		break;
-	case warning_level_action:
+	case UPOWER_DEVICE_LEVEL_ACTION:
 		msg = "Warning: power level at action threshold\n";
 		break;
 	default:
@@ -114,7 +115,7 @@ static int send_warning_update(sd_bus *bus, struct upower_device *device) {
 		snprintf(title, NOTIFICATION_MAX_LEN, "Power warning: %s (%s)", device->native_path, upower_device_type_string(device));
 	}
 
-	return notify(bus, title, msg, &device->notifications[slot_warning], urgency);
+	return notify(bus, title, msg, &device->notifications[SLOT_WARNING], urgency);
 }
 
 int main(int argc, char *argv[]) {
@@ -165,6 +166,8 @@ int main(int argc, char *argv[]) {
 					goto finish;
 				}
 			}
+
+			device->last = device->current;
 		}
 
 		for (int idx = 0; idx < state.removed_devices->length; idx++) {

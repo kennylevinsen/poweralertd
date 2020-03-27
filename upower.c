@@ -8,7 +8,7 @@
 #include "dbus.h"
 #include "upower.h"
 
-static char *upower_state_string[7] = {
+static char *upower_state_string[UPOWER_DEVICE_STATE_LAST] = {
 	"unknown",
 	"charging",
 	"discharging",
@@ -18,16 +18,19 @@ static char *upower_state_string[7] = {
 	"pending discharge",
 };
 
-static char *upower_warning_level_string[6] = {
+static char *upower_level_string[UPOWER_DEVICE_LEVEL_LAST] = {
 	"unknown",
 	"none",
 	"discharging",
 	"low",
 	"critical",
 	"action",
+	"normal",
+	"high",
+	"full"
 };
 
-static char *upower_type_string[9] = {
+static char *upower_type_string[UPOWER_DEVICE_TYPE_LAST] = {
 	"unknown",
 	"line power",
 	"battery",
@@ -37,10 +40,15 @@ static char *upower_type_string[9] = {
 	"keyboard",
 	"pda",
 	"phone",
+	"media player",
+	"tablet",
+	"computer",
+	"gaming input",
+	"pen",
 };
 
 int upower_device_has_battery(struct upower_device *device) {
-	return device->type != type_line_power && device->type != type_unknown;
+	return device->type != UPOWER_DEVICE_TYPE_LINE_POWER && device->type != UPOWER_DEVICE_TYPE_UNKNOWN;
 }
 
 static int upower_compare_path(const void *item, const void *data) {
@@ -52,7 +60,12 @@ static int upower_compare_path(const void *item, const void *data) {
 }
 
 static struct upower_device *upower_device_create() {
-	return calloc(1, sizeof(struct upower_device));
+	struct upower_device *device = calloc(1, sizeof(struct upower_device));
+	device->last.warning_level = UPOWER_DEVICE_LEVEL_NONE;
+	device->current.warning_level = UPOWER_DEVICE_LEVEL_NONE;
+	device->last.battery_level = UPOWER_DEVICE_LEVEL_NONE;
+	device->current.battery_level = UPOWER_DEVICE_LEVEL_NONE;
+	return device;
 }
 
 void upower_device_destroy(struct upower_device *device) {
@@ -80,21 +93,28 @@ void upower_device_destroy(struct upower_device *device) {
 }
 
 char* upower_device_state_string(struct upower_device *device) {
-	if (device->state >= 0 && device->state < 7) {
-		return upower_state_string[device->state];
+	if (device->current.state >= 0 && device->current.state < UPOWER_DEVICE_STATE_LAST) {
+		return upower_state_string[device->current.state];
 	}
 	return "unknown";
 }
 
 char* upower_device_warning_level_string(struct upower_device *device) {
-	if (device->warning_level >= 0 && device->warning_level < 6) {
-		return upower_warning_level_string[device->warning_level];
+	if (device->current.warning_level >= 0 && device->current.warning_level < UPOWER_DEVICE_LEVEL_LAST) {
+		return upower_level_string[device->current.warning_level];
+	}
+	return "unknown";
+}
+
+char* upower_device_battery_level_string(struct upower_device *device) {
+	if (device->current.battery_level >= 0 && device->current.battery_level < UPOWER_DEVICE_LEVEL_LAST) {
+		return upower_level_string[device->current.battery_level];
 	}
 	return "unknown";
 }
 
 char* upower_device_type_string(struct upower_device *device) {
-	if (device->type >= 0 && device->type < 9) {
+	if (device->type >= 0 && device->type < UPOWER_DEVICE_TYPE_LAST) {
 		return upower_type_string[device->type];
 	}
 	return "unknown";
@@ -103,6 +123,23 @@ char* upower_device_type_string(struct upower_device *device) {
 static int upower_device_update_state(sd_bus *bus, struct upower_device *device) {
 	sd_bus_error error = SD_BUS_ERROR_NULL;
 	int ret;
+
+	char *native_path = NULL;
+	ret = sd_bus_get_property_string(
+	    bus,
+	    "org.freedesktop.UPower",
+	    device->path,
+	    "org.freedesktop.UPower.Device",
+	    "NativePath",
+	    &error,
+	    &native_path);
+	if (ret < 0) {
+		goto finish;
+	}
+	if (device->native_path != NULL) {
+		free(device->native_path);
+	}
+	device->native_path = strdup(native_path);
 
 	ret = sd_bus_get_property_trivial(
 	    bus,
@@ -113,19 +150,6 @@ static int upower_device_update_state(sd_bus *bus, struct upower_device *device)
 	    &error,
 	    'b',
 	    &device->power_supply);
-	if (ret < 0) {
-		goto finish;
-	}
-
-	ret = sd_bus_get_property_trivial(
-	    bus,
-	    "org.freedesktop.UPower",
-	    device->path,
-	    "org.freedesktop.UPower.Device",
-	    "Online",
-	    &error,
-	    'b',
-	    &device->online);
 	if (ret < 0) {
 		goto finish;
 	}
@@ -155,21 +179,23 @@ static int upower_device_update_state(sd_bus *bus, struct upower_device *device)
 	if (ret < 0) {
 		goto finish;
 	}
+	if (device->model != NULL) {
+		free(device->model);
+	}
 	device->model = strdup(model);
 
-	char *native_path = NULL;
-	ret = sd_bus_get_property_string(
+	ret = sd_bus_get_property_trivial(
 	    bus,
 	    "org.freedesktop.UPower",
 	    device->path,
 	    "org.freedesktop.UPower.Device",
-	    "NativePath",
+	    "Online",
 	    &error,
-	    &native_path);
+	    'b',
+	    &device->current.online);
 	if (ret < 0) {
 		goto finish;
 	}
-	device->native_path = strdup(native_path);
 
 	ret = sd_bus_get_property_trivial(
 	    bus,
@@ -179,7 +205,7 @@ static int upower_device_update_state(sd_bus *bus, struct upower_device *device)
 	    "State",
 	    &error,
 	    'u',
-	    &device->state);
+	    &device->current.state);
 	if (ret < 0) {
 		goto finish;
 	}
@@ -192,7 +218,20 @@ static int upower_device_update_state(sd_bus *bus, struct upower_device *device)
 	    "WarningLevel",
 	    &error,
 	    'u',
-	    &device->warning_level);
+	    &device->current.warning_level);
+	if (ret < 0) {
+		goto finish;
+	}
+
+	ret = sd_bus_get_property_trivial(
+	    bus,
+	    "org.freedesktop.UPower",
+	    device->path,
+	    "org.freedesktop.UPower.Device",
+	    "BatteryLevel",
+	    &error,
+	    'u',
+	    &device->current.battery_level);
 	if (ret < 0) {
 		goto finish;
 	}
@@ -205,7 +244,7 @@ static int upower_device_update_state(sd_bus *bus, struct upower_device *device)
 	    "Percentage",
 	    &error,
 	    'd',
-	    &device->percentage);
+	    &device->current.percentage);
 
 finish:
 	sd_bus_error_free(&error);
@@ -240,37 +279,27 @@ static int handle_upower_device_properties_changed(sd_bus_message *msg, void *us
 			goto error;
 		}
 		if (strcmp(name, "State") == 0) {
-			uint32_t new_state;
-			ret = sd_bus_message_read(msg, "v", "u", &new_state);
+			ret = sd_bus_message_read(msg, "v", "u", &state->current.state);
 			if (ret < 0) {
 				goto error;
-			}
-			if (new_state != state->state) {
-				state->changes[slot_state] = 1;
-				state->state = new_state;
 			}
 		} else if (strcmp(name, "WarningLevel") == 0) {
-			uint32_t new_warning_level;
-			ret = sd_bus_message_read(msg, "v", "u", &new_warning_level);
+			ret = sd_bus_message_read(msg, "v", "u", &state->current.warning_level);
 			if (ret < 0) {
 				goto error;
 			}
-			if (new_warning_level != state->warning_level) {
-				state->changes[slot_warning] = 1;
-				state->warning_level = new_warning_level;
+		} else if (strcmp(name, "BatteryLevel") == 0) {
+			ret = sd_bus_message_read(msg, "v", "u", &state->current.battery_level);
+			if (ret < 0) {
+				goto error;
 			}
 		} else if (strcmp(name, "Online") == 0) {
-			int new_online;
-			ret = sd_bus_message_read(msg, "v", "b", &new_online);
+			ret = sd_bus_message_read(msg, "v", "b", &state->current.online);
 			if (ret < 0) {
 				goto error;
 			}
-			if (new_online != state->online) {
-				state->changes[slot_online] = 1;
-				state->online = new_online;
-			}
 		} else if (strcmp(name, "Percentage") == 0) {
-			ret = sd_bus_message_read(msg, "v", "d", &state->percentage);
+			ret = sd_bus_message_read(msg, "v", "d", &state->current.percentage);
 			if (ret < 0) {
 				goto error;
 			}
@@ -355,8 +384,6 @@ static int handle_upower_device_added(sd_bus_message *msg, void *userdata, sd_bu
 	// Fresh device
 	device = calloc(1, sizeof(struct upower_device));
 	device->path = strdup(path);
-	device->changes[slot_state] = 1;
-	device->changes[slot_online] = 1;
 
 	list_add(state->devices, device);
 
@@ -466,8 +493,6 @@ int init_upower(sd_bus *bus, struct upower *state) {
 		if (ret < 0) {
 			goto error;
 		}
-		device->changes[slot_state] = 1;
-		device->changes[slot_online] = 1;
 	}
 
 	ret = sd_bus_message_exit_container(msg);

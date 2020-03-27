@@ -6,63 +6,81 @@
 
 // org.freedesktop.UPower.Device.State
 // https://upower.freedesktop.org/docs/Device.html
-enum upower_state {
-	state_unknown = 0,
-	state_charging = 1,
-	state_discharging = 2,
-	state_empty = 3,
-	state_fully_charged = 4,
-	state_pending_charge = 5,
-	state_pending_discharge = 6,
+enum upower_device_state {
+	UPOWER_DEVICE_STATE_UNKNOWN,
+	UPOWER_DEVICE_STATE_CHARGING,
+	UPOWER_DEVICE_STATE_DISCHARGING,
+	UPOWER_DEVICE_STATE_EMPTY,
+	UPOWER_DEVICE_STATE_FULLY_CHARGED,
+	UPOWER_DEVICE_STATE_PENDING_CHARGE,
+	UPOWER_DEVICE_STATE_PENDING_DISCHARGE,
+	UPOWER_DEVICE_STATE_LAST
 };
 
 // org.freedesktop.UPower.Device.WarningLevel
 // https://upower.freedesktop.org/docs/Device.html
-enum upower_warning_level {
-	warning_level_unknown = 0,
-	warning_level_none = 1,
-	warning_level_discharging = 2,
-	warning_level_low = 3,
-	warning_level_critical = 4,
-	warning_level_action = 5,
+enum upower_device_level {
+	UPOWER_DEVICE_LEVEL_UNKNOWN,
+	UPOWER_DEVICE_LEVEL_NONE,
+	UPOWER_DEVICE_LEVEL_DISCHARGING,
+	UPOWER_DEVICE_LEVEL_LOW,
+	UPOWER_DEVICE_LEVEL_CRITICAL,
+	UPOWER_DEVICE_LEVEL_ACTION,
+	UPOWER_DEVICE_LEVEL_NORMAL,
+	UPOWER_DEVICE_LEVEL_HIGH,
+	UPOWER_DEVICE_LEVEL_FULL,
+	UPOWER_DEVICE_LEVEL_LAST
+
 };
 
 // org.freedesktop.UPower.Device.Type
 // https://upower.freedesktop.org/docs/Device.html
-enum upower_type {
-	type_unknown = 0,
-	type_line_power = 1,
-	type_battery = 2,
-	type_ups = 3,
-	type_monitor = 4,
-	type_mouse = 5,
-	type_keyboard = 6,
-	type_pda = 7,
-	type_phone = 8,
+enum upower_device_type {
+	UPOWER_DEVICE_TYPE_UNKNOWN,
+	UPOWER_DEVICE_TYPE_LINE_POWER,
+	UPOWER_DEVICE_TYPE_BATTERY,
+	UPOWER_DEVICE_TYPE_UPS,
+	UPOWER_DEVICE_TYPE_MONITOR,
+	UPOWER_DEVICE_TYPE_MOUSE,
+	UPOWER_DEVICE_TYPE_KEYBOARD,
+	UPOWER_DEVICE_TYPE_PDA,
+	UPOWER_DEVICE_TYPE_PHONE,
+	UPOWER_DEVICE_TYPE_MEDIA_PLAYER,
+	UPOWER_DEVICE_TYPE_TABLET,
+	UPOWER_DEVICE_TYPE_COMPUTER,
+	UPOWER_DEVICE_TYPE_GAMING_INPUT,
+	UPOWER_DEVICE_TYPE_PEN,
+	UPOWER_DEVICE_TYPE_LAST
 };
 
 enum change_slot {
-	slot_state = 0,
-	slot_warning = 1,
-	slot_online = 2,
+	SLOT_STATE = 0,
+	SLOT_WARNING = 1,
+	SLOT_ONLINE = 2,
+};
+
+struct upower_device_props {
+	int generation;
+	int online;
+	double percentage;
+	enum upower_device_state state;
+	enum upower_device_level warning_level;
+	enum upower_device_level battery_level;
 };
 
 struct upower_device {
-	// Path information
+	// Static properties
 	char* path;
 	char* native_path;
-
-	// Props we're intersted in
 	char *model;
 	int power_supply;
-	int online;
-	double percentage;
-	enum upower_type type;
-	enum upower_state state;
-	enum upower_warning_level warning_level;
+	enum upower_device_type type;
 
-	// Prop notification
-	int changes[3];
+	// Monitored properties
+	struct upower_device_props current;
+	struct upower_device_props last;
+
+	// Property notification
 	uint32_t notifications[3];
 
 	// sd_bus notification slot
@@ -78,6 +96,7 @@ struct upower {
 int upower_device_has_battery(struct upower_device *device);
 char* upower_device_state_string(struct upower_device *device);
 char* upower_device_warning_level_string(struct upower_device *device);
+char* upower_device_battery_level_string(struct upower_device *device);
 char* upower_device_type_string(struct upower_device *device);
 void upower_device_destroy(struct upower_device *device);
 
