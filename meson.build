@@ -13,9 +13,21 @@ project(
 add_project_arguments('-Wno-unused-parameter', language: 'c')
 add_project_arguments('-Wno-missing-braces', language: 'c')
 
+configuration = configuration_data()
+configuration.set('bindir', join_paths(get_option('prefix'), get_option('bindir')))
+
 logind = dependency('libsystemd', required: false)
 if logind.found()
 	add_project_arguments('-DHAVE_SYSTEMD=1', language: 'c')
+
+	systemd = dependency('systemd', required: true)
+	systemd_units_dir = systemd.get_pkgconfig_variable('systemduserunitdir')
+	configure_file(
+		configuration: configuration,
+		input: 'contrib/systemd-user/poweralertd.service.in',
+		output: '@BASENAME@',
+		install_dir: systemd_units_dir
+	)
 else
 	logind = dependency('libelogind')
 	add_project_arguments('-DHAVE_ELOGIND=1', language: 'c')

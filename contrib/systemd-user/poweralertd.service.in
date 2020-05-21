@@ -1,0 +1,12 @@
+[Unit]
+Description=UPower-powered power alerter
+Documentation=man:poweralertd(1)
+PartOf=graphical-session.target
+Requires=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=@bindir@/poweralertd
+
+[Install]
+WantedBy=graphical-session.target
