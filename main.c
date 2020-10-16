@@ -16,7 +16,11 @@ static int send_remove(sd_bus *bus, struct upower_device *device) {
 	enum urgency urgency = URGENCY_NORMAL;
 	char title[NOTIFICATION_MAX_LEN];
 
-	snprintf(title, NOTIFICATION_MAX_LEN, "Power status: %s", device->model);
+	if (strlen(device->model) > 0) {
+		snprintf(title, NOTIFICATION_MAX_LEN, "Power status: %s", device->model);
+	} else {
+		snprintf(title, NOTIFICATION_MAX_LEN, "Power status: %s (%s)", device->native_path, upower_device_type_string(device));
+	}
 	char *msg = "Device disconnected\n";
 
 	return notify(bus, title, msg, 0, urgency);
