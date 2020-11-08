@@ -16,9 +16,19 @@ add_project_arguments('-Wno-missing-braces', language: 'c')
 configuration = configuration_data()
 configuration.set('bindir', join_paths(get_option('prefix'), get_option('bindir')))
 
-logind = dependency('libsystemd', required: false)
-if logind.found()
+basu = dependency('libbasu', required: false)
+elogind = dependency('libelogind', required: false)
+systemd = dependency('libsystemd', required: false)
+
+if basu.found()
+	add_project_arguments('-DHAVE_BASU=1', language: 'c')
+	sdbus = basu
+elif elogind.found()
+	add_project_arguments('-DHAVE_ELOGIND=1', language: 'c')
+	sdbus = elogind
+elif systemd.found()
 	add_project_arguments('-DHAVE_SYSTEMD=1', language: 'c')
+	sdbus = systemd
 
 	systemd = dependency('systemd', required: true)
 	systemd_units_dir = systemd.get_pkgconfig_variable('systemduserunitdir')
@@ -29,14 +39,13 @@ if logind.found()
 		install_dir: systemd_units_dir
 	)
 else
-	logind = dependency('libelogind')
-	add_project_arguments('-DHAVE_ELOGIND=1', language: 'c')
+	dependency('basu')
 endif
 
 executable(
 	'poweralertd',
 	['main.c', 'upower.c', 'notify.c', 'list.c'],
-	dependencies: [logind],
+	dependencies: [sdbus],
 	install: true,
 )
 
