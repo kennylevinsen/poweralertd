@@ -16,7 +16,7 @@ add_project_arguments('-Wno-missing-braces', language: 'c')
 configuration = configuration_data()
 configuration.set('bindir', join_paths(get_option('prefix'), get_option('bindir')))
 
-basu = dependency('libbasu', required: false)
+basu = dependency('basu', required: false)
 elogind = dependency('libelogind', required: false)
 systemd = dependency('libsystemd', required: false)
 
