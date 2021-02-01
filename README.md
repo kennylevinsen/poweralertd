@@ -13,3 +13,7 @@ meson build
 ninja -C build
 build/poweralertd
 ```
+
+## I want more
+
+Go to #kennylevinsen @ chat.freenode.net to discuss, or use [~kennylevinsen/public-inbox@lists.sr.ht](https://lists.sr.ht/~kennylevinsen/public-inbox).
