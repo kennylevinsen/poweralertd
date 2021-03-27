@@ -58,9 +58,12 @@ static int send_state_update(sd_bus *bus, struct upower_device *device) {
 	char msg[NOTIFICATION_MAX_LEN];
 
 	switch (device->current.state) {
+	case UPOWER_DEVICE_STATE_UNKNOWN:
+		// Silence transitions to/from unknown
+		device->current.state = device->last.state;
+		return 0;
 	case UPOWER_DEVICE_STATE_EMPTY:
 	case UPOWER_DEVICE_STATE_PENDING_CHARGE:
-	case UPOWER_DEVICE_STATE_UNKNOWN:
 		urgency = URGENCY_CRITICAL;
 		break;
 	default:
