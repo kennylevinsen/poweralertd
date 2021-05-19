@@ -14,6 +14,6 @@ ninja -C build
 build/poweralertd
 ```
 
-## I want more
+## How to discuss
 
-Go to #kennylevinsen @ chat.freenode.net to discuss, or use [~kennylevinsen/public-inbox@lists.sr.ht](https://lists.sr.ht/~kennylevinsen/public-inbox).
+Go to #kennylevinsen @ irc.libera.chat to discuss, or use [~kennylevinsen/public-inbox@lists.sr.ht](https://lists.sr.ht/~kennylevinsen/public-inbox).
