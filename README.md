@@ -16,4 +16,4 @@ build/poweralertd
 
 ## How to discuss
 
-Go to #kennylevinsen @ irc.libera.chat to discuss, or use [~kennylevinsen/public-inbox@lists.sr.ht](https://lists.sr.ht/~kennylevinsen/public-inbox).
+Go to #kennylevinsen @ irc.libera.chat to discuss, or use [~kennylevinsen/poweralertd-devel@lists.sr.ht](https://lists.sr.ht/~kennylevinsen/poweralertd-devel).
