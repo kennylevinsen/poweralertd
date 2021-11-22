@@ -120,6 +120,15 @@ char* upower_device_type_string(struct upower_device *device) {
 	return "unknown";
 }
 
+int upower_device_type_int(char *device) {
+	for (int i=0; i < UPOWER_DEVICE_TYPE_LAST; i++) {
+		if (!strcmp(upower_type_string[i], device)) {
+			return i;
+		}
+	}
+	return -1;
+}
+
 static int upower_device_update_state(sd_bus *bus, struct upower_device *device) {
 	sd_bus_error error = SD_BUS_ERROR_NULL;
 	int ret;

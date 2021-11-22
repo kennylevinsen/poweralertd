@@ -98,6 +98,7 @@ char* upower_device_state_string(struct upower_device *device);
 char* upower_device_warning_level_string(struct upower_device *device);
 char* upower_device_battery_level_string(struct upower_device *device);
 char* upower_device_type_string(struct upower_device *device);
+int upower_device_type_int(char *device);
 void upower_device_destroy(struct upower_device *device);
 
 int init_upower(sd_bus *bus, struct upower *state);

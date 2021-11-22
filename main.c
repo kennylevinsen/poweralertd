@@ -2,6 +2,7 @@
 #include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <unistd.h>
 
@@ -107,6 +108,7 @@ static int send_warning_update(sd_bus *bus, struct upower_device *device) {
 		break;
 	case UPOWER_DEVICE_LEVEL_CRITICAL:
 		msg = "Warning: power level critical\n";
+		urgency = URGENCY_CRITICAL;
 		break;
 	case UPOWER_DEVICE_LEVEL_ACTION:
 		msg = "Warning: power level at action threshold\n";
@@ -125,7 +127,40 @@ static int send_warning_update(sd_bus *bus, struct upower_device *device) {
 	return notify(bus, title, msg, &device->notifications[SLOT_WARNING], urgency);
 }
 
+static const char usage[] = "usage: %s [options]\n"
+"  -h				show this help message\n"
+"  -s				ignore the events at startup\n"
+"  -i <device_type>		ignore this device type, can be use several times\n";
+
+
 int main(int argc, char *argv[]) {
+	int opt = 0;
+	int device_type = 0;
+	int ignore_types_mask = 0;
+	bool ignore_initial = false;
+	bool initialized = false;
+
+	while ((opt = getopt(argc, argv, "hsi:")) != -1) {
+		switch (opt) {
+		case 'i':
+			device_type = upower_device_type_int(optarg);
+			if (device_type > -1) {
+				ignore_types_mask |= 1 << device_type;
+			}
+			else {
+				printf("Unrecognized device type: %s\n", optarg);
+			}
+			break;
+		case 's':
+			ignore_initial = true;
+			break;
+		case 'h':
+		default:
+			fprintf(stderr, usage, argv[0]);
+			return opt == 'h' ? EXIT_SUCCESS : EXIT_FAILURE;
+		}
+	}
+
 	struct upower state = { 0 };
 	sd_bus *user_bus = NULL;
 	sd_bus *system_bus = NULL;
@@ -155,6 +190,15 @@ int main(int argc, char *argv[]) {
 		for (int idx = 0; idx < state.devices->length; idx++) {
 			struct upower_device *device = state.devices->items[idx];
 
+			if ((ignore_types_mask & (1 << device->type))) {
+				goto next_device;
+			}
+
+			if (!initialized && ignore_initial) {
+				goto next_device;
+			}
+
+
 			if (upower_device_has_battery(device)) {
 				ret = send_state_update(user_bus, device);
 				if (ret < 0) {
@@ -173,7 +217,7 @@ int main(int argc, char *argv[]) {
 					goto finish;
 				}
 			}
-
+next_device:
 			device->last = device->current;
 		}
 
@@ -203,6 +247,9 @@ int main(int argc, char *argv[]) {
 			fprintf(stderr, "could not wait for system bus messages: %s\n", strerror(-ret));
 			goto finish;
 		}
+
+		initialized = true;
+
 	}
 
 finish:
