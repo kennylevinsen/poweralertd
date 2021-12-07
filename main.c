@@ -91,6 +91,10 @@ static int send_warning_update(sd_bus *bus, struct upower_device *device) {
 		return 0;
 	}
 
+	if (device->current.warning_level == UPOWER_DEVICE_LEVEL_NONE && device->last.warning_level == UPOWER_DEVICE_LEVEL_UNKNOWN) {
+		return 0;
+	}
+
 	enum urgency urgency = URGENCY_CRITICAL;
 	char title[NOTIFICATION_MAX_LEN];
 	char *msg;
