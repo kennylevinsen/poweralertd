@@ -145,8 +145,8 @@ static int send_warning_update(sd_bus *bus, struct upower_device *device) {
 
 static const char usage[] = "usage: %s [options]\n"
 "  -h				show this help message\n"
-"  -s				ignore the events at startup\n"
-"  -i <device_type>		ignore this device type, can be use several times\n";
+"  -s				ignore events within 1 second of startup\n"
+"  -i <device_type>		ignore this device type, can be use several timess\n";
 
 
 int main(int argc, char *argv[]) {

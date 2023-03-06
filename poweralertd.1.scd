@@ -8,6 +8,17 @@ poweralertd - power alert notifications
 
 *poweralertd*
 
+# OPTIONS
+
+*-h*
+	Show help message and quit.
+
+*-s*
+	Ignore events within 1 second of startup.
+
+*-i <device_type>*
+	Ignore this device type. Can be used several times.
+
 # DESCRIPTION
 
 poweralertd monitors all power devices known to UPower, and provides
