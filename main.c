@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "dbus.h"
@@ -12,6 +13,15 @@
 #include "list.h"
 
 #define NOTIFICATION_MAX_LEN 128
+
+static uint64_t milliseconds_since(struct timespec *start) {
+	struct timespec current;
+	if (clock_gettime(CLOCK_MONOTONIC, &current) == -1) {
+		return 0;
+	}
+
+	return (current.tv_sec - start->tv_sec) * 1000 + (current.tv_nsec - start->tv_nsec) / 1000000;
+}
 
 static int send_remove(sd_bus *bus, struct upower_device *device) {
 	enum urgency urgency = URGENCY_NORMAL;
@@ -154,6 +164,12 @@ int main(int argc, char *argv[]) {
 	bool ignore_initial = false;
 	bool initialized = false;
 
+	struct timespec start;
+	if (clock_gettime(CLOCK_MONOTONIC, &start) == -1) {
+		fprintf(stderr, "could not get current time: %s\n", strerror(errno));
+		return EXIT_FAILURE;
+	}
+
 	while ((opt = getopt(argc, argv, "hsi:")) != -1) {
 		switch (opt) {
 		case 'i':
@@ -254,15 +270,15 @@ next_device:
 			continue;
 		}
 
-
 		ret = sd_bus_wait(system_bus, UINT64_MAX);
 		if (ret < 0) {
 			fprintf(stderr, "could not wait for system bus messages: %s\n", strerror(-ret));
 			goto finish;
 		}
 
-		initialized = true;
-
+		if (!initialized) {
+			initialized = milliseconds_since(&start) > 500;
+		}
 	}
 
 finish:
