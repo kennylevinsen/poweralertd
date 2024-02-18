@@ -154,7 +154,8 @@ static int send_warning_update(sd_bus *bus, struct upower_device *device) {
 static const char usage[] = "usage: %s [options]\n"
 "  -h				show this help message\n"
 "  -s				ignore the events at startup\n"
-"  -i <device_type>		ignore this device type, can be use several times\n";
+"  -i <device_type>		ignore this device type, can be use several times\n"
+"  -S				only use the events coming from power supplies\n";
 
 
 int main(int argc, char *argv[]) {
@@ -162,6 +163,7 @@ int main(int argc, char *argv[]) {
 	int device_type = 0;
 	int ignore_types_mask = 0;
 	bool ignore_initial = false;
+	bool ignore_non_power_supplies = false;
 	bool initialized = false;
 
 	struct timespec start;
@@ -170,7 +172,7 @@ int main(int argc, char *argv[]) {
 		return EXIT_FAILURE;
 	}
 
-	while ((opt = getopt(argc, argv, "hsi:")) != -1) {
+	while ((opt = getopt(argc, argv, "hsi:S")) != -1) {
 		switch (opt) {
 		case 'i':
 			device_type = upower_device_type_int(optarg);
@@ -183,6 +185,9 @@ int main(int argc, char *argv[]) {
 			break;
 		case 's':
 			ignore_initial = true;
+			break;
+		case 'S':
+			ignore_non_power_supplies = true;
 			break;
 		case 'h':
 		default:
@@ -228,6 +233,10 @@ int main(int argc, char *argv[]) {
 				goto next_device;
 			}
 
+			if (ignore_non_power_supplies && !device->power_supply) {
+				goto next_device;
+			}
+
 			if (upower_device_has_battery(device)) {
 				ret = send_state_update(user_bus, device);
 				if (ret < 0) {
@@ -254,6 +263,10 @@ next_device:
 			struct upower_device *device = state.removed_devices->items[idx];
 
 			if ((ignore_types_mask & (1 << device->type))) {
+				continue;
+			}
+
+			if (ignore_non_power_supplies && !device->power_supply) {
 				continue;
 			}
 
