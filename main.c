@@ -253,6 +253,10 @@ next_device:
 		for (int idx = 0; idx < state.removed_devices->length; idx++) {
 			struct upower_device *device = state.removed_devices->items[idx];
 
+			if ((ignore_types_mask & (1 << device->type))) {
+				continue;
+			}
+
 			ret = send_remove(user_bus, device);
 			if (ret < 0) {
 				fprintf(stderr, "could not send device removal notification: %s\n", strerror(-ret));
