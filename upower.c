@@ -45,6 +45,21 @@ static char *upower_type_string[UPOWER_DEVICE_TYPE_LAST] = {
 	"computer",
 	"gaming input",
 	"pen",
+	"touchpad",
+	"modem",
+	"network",
+	"headset",
+	"speakers",
+	"headphones",
+	"video",
+	"other audio",
+	"remote control",
+	"printer",
+	"scanner",
+	"camera",
+	"wearable",
+	"toy",
+	"bluetooth generic",
 };
 
 int upower_device_has_battery(struct upower_device *device) {
