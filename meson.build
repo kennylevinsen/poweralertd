@@ -2,6 +2,7 @@ project(
 	'poweralertd',
 	'c',
 	license: 'GPL3',
+	version: '0.3.0',
 	meson_version: '>=0.47.0',
 	default_options: [
 		'c_std=c11',
