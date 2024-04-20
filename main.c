@@ -153,6 +153,7 @@ static int send_warning_update(sd_bus *bus, struct upower_device *device) {
 
 static const char usage[] = "usage: %s [options]\n"
 "  -h				show this help message\n"
+"  -v				show the version number\n"
 "  -s				ignore the events at startup\n"
 "  -i <device_type>		ignore this device type, can be use several times\n"
 "  -S				only use the events coming from power supplies\n";
@@ -172,7 +173,7 @@ int main(int argc, char *argv[]) {
 		return EXIT_FAILURE;
 	}
 
-	while ((opt = getopt(argc, argv, "hsi:S")) != -1) {
+	while ((opt = getopt(argc, argv, "hvsi:S")) != -1) {
 		switch (opt) {
 		case 'i':
 			device_type = upower_device_type_int(optarg);
@@ -189,6 +190,9 @@ int main(int argc, char *argv[]) {
 		case 'S':
 			ignore_non_power_supplies = true;
 			break;
+		case 'v':
+			printf("poweralertd version %s\n", POWERALERTD_VERSION);
+			return EXIT_SUCCESS;
 		case 'h':
 		default:
 			fprintf(stderr, usage, argv[0]);

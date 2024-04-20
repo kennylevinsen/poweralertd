@@ -11,8 +11,13 @@ project(
 	],
 )
 
-add_project_arguments('-Wno-unused-parameter', language: 'c')
-add_project_arguments('-Wno-missing-braces', language: 'c')
+add_project_arguments([
+    '-Wno-unused-parameter',
+    '-Wno-missing-braces',
+    '-DPOWERALERTD_VERSION="@0@"'.format(meson.project_version()),
+  ],
+  language: 'c',
+)
 
 configuration = configuration_data()
 configuration.set('bindir', join_paths(get_option('prefix'), get_option('bindir')))
